@@ -4,17 +4,29 @@
 #include <string>
 #include <vector>
 #include <climits>
-
+#include <iostream>
+#include <cstring>
 #include "../rbf/pfm.h"
+#include <stdlib.h>
 
 using namespace std;
 
-// Record ID
+
 typedef struct
 {
-  unsigned pageNum;	// page number
-  unsigned slotNum; // slot number in the page
+  unsigned pageNum;    // page number
+  unsigned slotNum;    // slot number in the page
 } RID;
+
+typedef struct
+{
+	short int transfer_pageNum;
+	//short int transfer_recordOffset;
+	//short int transfer_recordLength;
+	short int transfer_slotNum;
+} TOMBSTONE;
+
+
 
 
 // Attribute
@@ -28,14 +40,19 @@ struct Attribute {
     AttrLength length; // attribute length
 };
 
+
+static PagedFileManager *_pf_manager;
+
+
+
 // Comparison Operator (NOT needed for part 1 of the project)
-typedef enum { EQ_OP = 0, // = 
+typedef enum { EQ_OP = 0, // no condition// = 
            LT_OP,      // <
            LE_OP,      // <=
            GT_OP,      // >
            GE_OP,      // >=
            NE_OP,      // !=
-           NO_OP	   // no condition
+           NO_OP       // no condition
 } CompOp;
 
 
@@ -56,20 +73,31 @@ The scan iterator is NOT required to be implemented for the part 1 of the projec
 
 class RBFM_ScanIterator {
 public:
-  RBFM_ScanIterator() {};
-  ~RBFM_ScanIterator() {};
+	  RBFM_ScanIterator();
+	  ~RBFM_ScanIterator();
 
-  // Never keep the results in the memory. When getNextRecord() is called, 
-  // a satisfying record needs to be fetched from the file.
-  // "data" follows the same format as RecordBasedFileManager::insertRecord().
-  RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
-  RC close() { return -1; };
+	  // Never keep the results in the memory. When getNextRecord() is called,
+	  // a satisfying record needs to be fetched from the file.
+	  // "data" follows the same format as RecordBasedFileManager::insertRecord().
+	  RC getNextRecord(RID &rid, void *data);//return RBFM_EOF;
+	  RC close();
+	  RC scan_readRecord(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const RID &rid, const void *data, void*read_data);
+	  RC scan_compare(const CompOp compOp,int &hit,const void*value,const void*value_get);
+	  FileHandle fileHandlescaniter;
+	  RID rid_iterator;
+	  vector<Attribute> recordDescriptor_iterator;
+	  CompOp compOp;
+	  const void *value;
+	  int pagenum;
+	  string  conditionAttrbutestr;
+	  vector<string> attributeNames_iterator;
 };
 
 
 class RecordBasedFileManager
 {
 public:
+
   static RecordBasedFileManager* instance();
 
   RC createFile(const string &fileName);
@@ -80,10 +108,18 @@ public:
   
   RC closeFile(FileHandle &fileHandle);
 
+  bool FileExists(const string &fileName)
+ {
+     struct stat stFileInfo;
+     if(stat(fileName.c_str(), &stFileInfo) == 0) return true;
+     else return false;
+ }
+  //FILE *file;
+
   //  Format of the data passed into the function is the following:
   //  [n byte-null-indicators for y fields] [actual value for the first field] [actual value for the second field] ...
   //  1) For y fields, there is n-byte-null-indicators in the beginning of each record.
-  //     The value n can be calculated as: ceil(y / 8). (e.g., 5 fields => ceil(5 / 8) = 1. 12 fields => ceil(12 / 8) = 2.)
+  //     The value n can be calculated as: ceil(y / 8). (e.g., 5 fields => ceil(5 / 8) = 1.,, 12 fields => ceil(12 / 8) = 2.)
   //     Each bit represents whether each field value is null or not.
   //     If k-th bit from the left is set to 1, k-th field value is null. We do not include anything in the actual data part.
   //     If k-th bit from the left is set to 0, k-th field contains non-null values.
@@ -124,7 +160,17 @@ IMPORTANT, PLEASE READ: All methods below this comment (other than the construct
       const vector<string> &attributeNames, // a list of projected attributes
       RBFM_ScanIterator &rbfm_ScanIterator);
 
+
+
 public:
+
+  RC calculateFieldsSize(const vector<Attribute> recordDescriptor, const void *data);
+  RC writeRecord(const void *data,int dataSize, char *pointer, int slotNum, int pageNum, RID &rid);
+  RC transferRecord(FileHandle &fileHandle, const void *data, short int dataSize, TOMBSTONE &transferIndicator );
+  RC deleteTransferRecord(FileHandle &fileHandle,TOMBSTONE &transferIndicator);
+  TOMBSTONE updateTransferdRecord(FileHandle &fileHandle, const void *data, short int dataSize,TOMBSTONE &transferIndicator,const RID &rid);
+
+    //RC writeRecord(void *data,int dataSize, char *pointer, int slotNum,int pageNum, RID &rid  );
 
 protected:
   RecordBasedFileManager();
@@ -132,6 +178,9 @@ protected:
 
 private:
   static RecordBasedFileManager *_rbf_manager;
+
+
+
 };
 
 #endif

@@ -16,6 +16,15 @@ class IndexManager {
     public:
         static IndexManager* instance();
 
+
+        bool FileExists(const string &fileName)
+       {
+           struct stat stFileInfo;
+           if(stat(fileName.c_str(), &stFileInfo) == 0) return true;
+           else return false;
+       }
+
+
         // Create an index file.
         RC createFile(const string &fileName);
 
@@ -86,6 +95,10 @@ class IXFileHandle {
 
     // Destructor
     ~IXFileHandle();
+
+//==================================add new variable and function====================================
+    FileHandle fileHandle;
+//===================================================================================================
 
 	// Put the current counter values of associated PF FileHandles into variables
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);

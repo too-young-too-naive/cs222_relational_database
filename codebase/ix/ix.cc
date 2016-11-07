@@ -21,22 +21,55 @@ IndexManager::~IndexManager()
 
 RC IndexManager::createFile(const string &fileName)
 {
-    return -1;
+	if(PagedFileManager::instance()->FileExists(fileName)){
+		cout<<"The file has already existed!"<<endl;
+		return -1;
+	}
+	else{
+		PagedFileManager::instance()->createFile(fileName);
+		return 0;
+	}
+
+
 }
 
 RC IndexManager::destroyFile(const string &fileName)
 {
-    return -1;
+	if(PagedFileManager::instance()->FileExists(fileName)!=0){
+		cout<<"No file exists!"<<endl;
+		return 0;
+	}
+	if(PagedFileManager::instance()->destroyFile(fileName)!=0){
+		cout<<"Delete file failure!"<<endl;
+		return -1;
+	}
+    return 0;
 }
 
 RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
 {
-    return -1;
+	if(PagedFileManager::instance()->FileExists(fileName)){
+		PagedFileManager::instance()->openFile(fileName.c_str(),ixfileHandle.fileHandle);
+		if(ixfileHandle.fileHandle.getNumberOfPages()==0){
+			void *newPage=malloc(PAGE_SIZE);
+			memset(newPage,0,PAGE_SIZE);
+		    ixfileHandle.fileHandle.appendPage(newPage);
+		    free(newPage);
+		}
+		return 0;
+	}
+	else{
+
+		cout<<"No file has already existed!"<<endl;
+		return -1;
+	}
+    //return -1;
 }
 
 RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 {
-    return -1;
+	if(PagedFileManager::instance()->closeFile(ixfileHandle.fileHandle)!=0) return -1;
+    return 0;
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
@@ -96,6 +129,9 @@ IXFileHandle::~IXFileHandle()
 
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
 {
-    return -1;
+    readPageCount=ixReadPageCounter;
+    writePageCount=ixWritePageCounter;
+    appendPageCount=ixAppendPageCounter;
+    return 0;
 }
 
