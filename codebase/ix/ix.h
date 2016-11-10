@@ -11,6 +11,13 @@
 class IX_ScanIterator;
 class IXFileHandle;
 
+typedef enum
+{
+	leafNode=0,
+	nonLeafNode=1
+}nodeType;
+
+
 class IndexManager {
 
     public:
@@ -23,6 +30,8 @@ class IndexManager {
            if(stat(fileName.c_str(), &stFileInfo) == 0) return true;
            else return false;
        }
+
+        unsigned short int rootNodeNum;
 
 
         // Create an index file.
@@ -54,6 +63,8 @@ class IndexManager {
 
         // Print the B+ tree in pre-order (in a JSON record format)
         void printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const;
+
+        RC findPosition(IXFileHandle &ixfileHandle, AttrType attrType);
 
     protected:
         IndexManager();
@@ -89,6 +100,7 @@ class IXFileHandle {
     unsigned ixReadPageCounter;
     unsigned ixWritePageCounter;
     unsigned ixAppendPageCounter;
+    unsigned openCounter;
 
     // Constructor
     IXFileHandle();
