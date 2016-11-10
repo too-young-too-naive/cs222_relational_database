@@ -76,6 +76,87 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
     return 0;
 }
 
+RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum)
+{
+	//read root page
+	ixfileHandle.readPage(pagnum);
+	//read specific field to judge whether leaf
+	unsigned int flag;
+	if(flag==1)
+	{
+		//not leaf
+		//begin search
+		//binary search
+		//read all slotnum
+		int a_begin,a_end, a_mid;
+		while(a_begin>a_end)
+		{
+			int slotnum;
+			int a_mid;
+			a_mid=floor((a_begin+a_end)/2);
+			//read records a_mid
+			if(recordMid<key)
+			{
+				a_end = a_mid-1;
+			}
+			else
+			{
+				a_begin = a_mid+1; //calculate slot number
+			}
+			//get key of a_mid+1
+			//get key of a_mid-1
+
+			if(key<=keyright&&key>keyleft)
+			{
+				//find the position in this page, then go to next level;
+				//read pointer-> get next page num
+			}
+		}
+
+
+
+	}
+
+}
+
+RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum)
+{
+	ixfileHandle.readPage(pagnum);
+		//read specific field to judge whether leaf
+		unsigned int flag;
+
+			//not leaf
+			//begin search
+			//binary search
+			//read all slotnum
+			int a_begin,a_end, a_mid;
+			while(a_begin>a_end)
+			{
+				int slotnum;
+				int a_mid;
+				a_mid=floor((a_begin+a_end)/2);
+				//read records a_mid
+				if(recordMid<key)
+				{
+					a_end = a_mid-1;
+				}
+				else
+				{
+					a_begin = a_mid+1; //calculate slot number
+				}
+				//get key of a_mid+1
+				//get key of a_mid-1
+
+				if(key<=keyright&&key>keyleft)
+				{
+					//find the position in this page, then go to next level;
+					//record current slot num insert from this slot
+					break;
+				}
+			}
+
+}
+
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
 	short int pageNum, pageType,keySize;
@@ -88,10 +169,31 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 	memset(newPage,0,PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(rootNodeNum,newPage);
 	memcpy(&pageType,(char*)newPage+PAGE_SIZE-4-4,4);//get the type of the node
+
+	unsigned int pagnum = rootNodeNum;
+	unsigned int nextpagnum;
+
+	// when empty in create Bplus tree, rootpagnum = page 0; flag =0; means it is also leaf
+
+	//find exceted position of the key should be
+	while(flag==1)
+	{
+		findMidnode(...,pagnum,nextpagnum);
+		pagnum = nextpagnum;
+	}
+
+	if(flag ==0)
+	{
+		findLeafnode(...,pagnum);
+		pagnum =...;
+		slotnum =...;
+
+	}
+//get the position
 	if(pageType==leafNode)
 	{
 
-		findPositionFromLeafNode();
+	//	findMidnode();
 		switch(attribute.type)
 		{
 		case TypeInt:{
