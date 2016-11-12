@@ -22,7 +22,7 @@ class IndexManager {
 
     public:
         static IndexManager* instance();
-
+        unsigned int flag;
 
         bool FileExists(const string &fileName)
        {
@@ -51,8 +51,8 @@ class IndexManager {
 
         // Delete an entry from the given index that is indicated by the given ixfileHandle.
         RC deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
-        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum);
-        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum);
+        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,unsigned int nextpagnum);
+        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, RID &rid,const unsigned int pagnum);
         // Initialize and IX_ScanIterator to support a range search
         RC scan(IXFileHandle &ixfileHandle,
                 const Attribute &attribute,
@@ -115,6 +115,8 @@ class IXFileHandle {
 
 	// Put the current counter values of associated PF FileHandles into variables
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+
+	RC readRecord(const void* dataPage,const Attribute &attribute, void *dataRead,RID rid);
 
 };
 

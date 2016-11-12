@@ -76,12 +76,27 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
     return 0;
 }
 
-RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum)
+RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagNum,unsigned int nextpagNum)
 {
+	int key_insert;
+	memcmp(&key_insert,key,sizeof(key));
 	//read root page
-	ixfileHandle.readPage(pagnum);
+	char*recordMid = (char*)malloc(PAGE_SIZE);
+	char*recordLeft = (char*)malloc(PAGE_SIZE);
+	char*recordRight = (char*)malloc(PAGE_SIZE);//should not be page size
+	int keyMid,keyLeft,keyRight;
+	//ixfileHandle.fileHandle.readPage(pagNum,data);
+    vector<Attribute> attrs;
+    attrs.push_back(attribute);
+    void*data = malloc(PAGE_SIZE);
+    ixfileHandle.fileHandle.readPage(pagNum,data);
+    int offset = PAGE_SIZE-8;
 	//read specific field to judge whether leaf
-	unsigned int flag;
+	//unsigned int flag;
+	memcpy(&flag, offset + (char*) data, 4);
+	RID rid_ix;
+	RID rid_ixLeft;
+	RID rid_ixRight;
 	if(flag==1)
 	{
 		//not leaf
@@ -89,12 +104,19 @@ RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attrib
 		//binary search
 		//read all slotnum
 		int a_begin,a_end, a_mid;
+		int keyRight,keyLeft;
 		while(a_begin>a_end)
 		{
 			int slotnum;
 			int a_mid;
 			a_mid=floor((a_begin+a_end)/2);
+			//getattribute firstly
+			rid_ix.pageNum = pagNum;
+			rid_ix.slotNum = a_mid;
+			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordMid);//we should modify this cause we have already catch whole page in data
+			memcpy(&keyMid,(char*)recordMid+4,sizeof(recordMid)-4);
 			//read records a_mid
+			//if attrs is varchar we need to cut record length....
 			if(recordMid<key)
 			{
 				a_end = a_mid-1;
@@ -105,55 +127,102 @@ RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attrib
 			}
 			//get key of a_mid+1
 			//get key of a_mid-1
-
-			if(key<=keyright&&key>keyleft)
+			keyRight = a_mid+1;
+			rid_ixRight.pageNum = pagNum;
+			rid_ixRight.slotNum = keyRight;
+			keyLeft  = a_mid-1;
+			rid_ixLeft.pageNum = pagNum;
+			rid_ixLeft.slotNum = keyLeft;
+			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordLeft);
+			memcpy(&keyLeft,recordLeft+4,sizeof(recordLeft)-4);
+			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordRight);
+			memcpy(&keyRight,recordRight+4,sizeof(recordRight)-4);
+			if(key_insert<=keyRight&&key_insert>keyLeft)
 			{
 				//find the position in this page, then go to next level;
 				//read pointer-> get next page num
+				memcpy(&nextpagNum,recordRight,4);
+				break;
 			}
 		}
 
+		return 0;
 
-
+	}
+	else
+	{
+		return 0;
 	}
 
 }
 
-RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum)
+RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, RID &rid,const unsigned int pagNum)
 {
-	ixfileHandle.readPage(pagnum);
-		//read specific field to judge whether leaf
-		unsigned int flag;
+	int key_insert;
+	memcmp(&key_insert,key,sizeof(key));
+	char*recordMid = (char*)malloc(PAGE_SIZE);
+	char*recordLeft = (char*)malloc(PAGE_SIZE);
+	char*recordRight = (char*)malloc(PAGE_SIZE);//should not be page size
+	int keyMid,keyLeft,keyRight;
+	//ixfileHandle.fileHandle.readPage(pagNum,data);
+    vector<Attribute> attrs;
+    attrs.push_back(attribute);
+    void*data = malloc(PAGE_SIZE);
+    ixfileHandle.fileHandle.readPage(pagNum,data);
+    int offset = PAGE_SIZE-8;
+	//read specific field to judge whether leaf
+	//unsigned int flag;
+	memcpy(&flag, offset + (char*) data, 4);
+	RID rid_ix;
+	RID rid_ixLeft;
+	RID rid_ixRight;
+	//not leaf
+	//begin search
+	//binary search
+	//read all slotnum
+	int a_begin,a_end, a_mid;
+	while(a_begin>a_end)
+	{
+		int slotnum;
+		int a_mid;
+		a_mid=floor((a_begin+a_end)/2);
+		//getattribute firstly
+		rid_ix.pageNum = pagNum;
+		rid_ix.slotNum = a_mid;
+		RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordMid);//we should modify this cause we have already catch whole page in data
+		memcpy(&keyMid,(char*)recordMid+4,sizeof(recordMid)-8);
+		//read records a_mid
+		//if attrs is varchar we need to cut record length....
+		if(recordMid<key)
+		{
+			a_end = a_mid-1;
+		}
+		else
+		{
+			a_begin = a_mid+1; //calculate slot number
+		}
+		//get key of a_mid+1
+		//get key of a_mid-1
+		keyRight = a_mid+1;
+		rid_ixRight.pageNum = pagNum;
+		rid_ixRight.slotNum = keyRight;
+		keyLeft  = a_mid-1;
+		rid_ixLeft.pageNum = pagNum;
+		rid_ixLeft.slotNum = keyLeft;
+		RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordLeft);
+		memcpy(&keyLeft,(char*)recordLeft+4,sizeof(recordLeft)-8);
+		RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordRight);
+		memcpy(&keyRight,(char*)recordRight+4,sizeof(recordRight)-8);
+		if(key_insert<=keyRight&&key_insert>keyLeft)
+		{
+			//find the position in this page, then go to next level;
+			//read pointer-> get next page num
+			memcpy(&rid.pageNum,(char*)recordRight+sizeof(recordRight)-8,4);
+			memcpy(&rid.slotNum,(char*)recordRight+sizeof(recordRight)-4,4);
+		}
+	}
 
-			//not leaf
-			//begin search
-			//binary search
-			//read all slotnum
-			int a_begin,a_end, a_mid;
-			while(a_begin>a_end)
-			{
-				int slotnum;
-				int a_mid;
-				a_mid=floor((a_begin+a_end)/2);
-				//read records a_mid
-				if(recordMid<key)
-				{
-					a_end = a_mid-1;
-				}
-				else
-				{
-					a_begin = a_mid+1; //calculate slot number
-				}
-				//get key of a_mid+1
-				//get key of a_mid-1
-
-				if(key<=keyright&&key>keyleft)
-				{
-					//find the position in this page, then go to next level;
-					//record current slot num insert from this slot
-					break;
-				}
-			}
+	return 0;
 
 }
 
@@ -190,6 +259,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 	}
 //get the position
+
 	if(pageType==leafNode)
 	{
 
@@ -293,6 +363,7 @@ IXFileHandle::~IXFileHandle()
 {
 }
 
+
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
 {
     readPageCount=fileHandle.readPageCounter;
@@ -301,3 +372,23 @@ RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePa
     return 0;
 }
 
+RC IXFileHandle:: readRecord(const void* dataPage, const Attribute &attribute,void *dataRead,RID rid)
+{
+	void* newPage = malloc(PAGE_SIZE);
+	memcpy(newPage,dataPage,PAGE_SIZE);
+	char* pointer = (char*) newPage;
+	short int recordLength, recordOffset;
+	pointer = pointer + PAGE_SIZE - 4 - 4 * rid.slotNum;
+	memcpy(&recordOffset, pointer, 2);
+	pointer += 2;
+	memcpy(&recordLength, pointer, 2);//length should contain 4 pointer bytes
+
+	if(recordLength==-1)
+	{
+		return -1;
+
+	}
+	memcpy(dataRead, (char*) newPage + recordOffset, recordLength);
+	free(newPage);
+	return 0;
+}
