@@ -51,8 +51,12 @@ class IndexManager {
 
         // Delete an entry from the given index that is indicated by the given ixfileHandle.
         RC deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
-        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,unsigned int nextpagnum);
-        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, RID &rid,const unsigned int pagnum);
+        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute,
+        		const void *key, const RID &rid,const unsigned int pagnum,unsigned int nextpagnum);
+        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key,
+        		 int slotPosition,const unsigned int pagnum);
+        RC splitEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *keyLeafMid,const void *key, const RID &rid,
+        		const unsigned int parents,vector<int>&parentsTree,int formerlevel);
         // Initialize and IX_ScanIterator to support a range search
         RC scan(IXFileHandle &ixfileHandle,
                 const Attribute &attribute,
@@ -117,6 +121,9 @@ class IXFileHandle {
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
 	RC readRecord(const void* dataPage,const Attribute &attribute, void *dataRead,RID rid);
+
+	RC insertRecord( void* dataPage, const Attribute &attribute,void *dataInsert,RID rid);
+	RC deleteRecord( void* dataPage, const Attribute &attribute,RID rid);//maybe do not need key
 
 };
 

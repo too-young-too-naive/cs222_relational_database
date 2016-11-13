@@ -72,7 +72,7 @@ RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
 
 RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 {
-	if(PagedFileManager::instance()->closeFile(ixfileHandle.fileHandle)!=0) return -1;
+	PagedFileManager::instance()->closeFile(ixfileHandle.fileHandle);
     return 0;
 }
 
@@ -113,7 +113,8 @@ RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attrib
 			//getattribute firstly
 			rid_ix.pageNum = pagNum;
 			rid_ix.slotNum = a_mid;
-			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordMid);//we should modify this cause we have already catch whole page in data
+			//const void* dataPage, const Attribute &attribute,void *dataRead,RID rid
+			ixfileHandle.readRecord(data,attribute,recordMid,rid_ix);//we should modify this cause we have already catch whole page in data
 			memcpy(&keyMid,(char*)recordMid+4,sizeof(recordMid)-4);
 			//read records a_mid
 			//if attrs is varchar we need to cut record length....
@@ -133,9 +134,11 @@ RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attrib
 			keyLeft  = a_mid-1;
 			rid_ixLeft.pageNum = pagNum;
 			rid_ixLeft.slotNum = keyLeft;
-			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordLeft);
+			ixfileHandle.readRecord(data,attribute,recordLeft,rid_ix);
+		//	RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordLeft);
 			memcpy(&keyLeft,recordLeft+4,sizeof(recordLeft)-4);
-			RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordRight);
+			ixfileHandle.readRecord(data,attribute,recordRight,rid_ix);
+		//	RecordBasedFileManager::instance()->readRecord(ixfileHandle.fileHandle,attrs,rid_ix,recordRight);
 			memcpy(&keyRight,recordRight+4,sizeof(recordRight)-4);
 			if(key_insert<=keyRight&&key_insert>keyLeft)
 			{
@@ -146,17 +149,25 @@ RC IndexManager::findMidnode(IXFileHandle &ixfileHandle, const Attribute &attrib
 			}
 		}
 
+		free(recordMid);
+		free(recordLeft);
+		free(recordRight);
+		free(data);
 		return 0;
 
 	}
 	else
 	{
+		free(recordMid);
+		free(recordLeft);
+		free(recordRight);
+		free(data);
 		return 0;
 	}
 
 }
 
-RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, RID &rid,const unsigned int pagNum)
+RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, int slotPosition,const unsigned int pagNum)
 {
 	int key_insert;
 	memcmp(&key_insert,key,sizeof(key));
@@ -215,13 +226,18 @@ RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attri
 		memcpy(&keyRight,(char*)recordRight+4,sizeof(recordRight)-8);
 		if(key_insert<=keyRight&&key_insert>keyLeft)
 		{
+			slotPosition = keyLeft;
 			//find the position in this page, then go to next level;
 			//read pointer-> get next page num
-			memcpy(&rid.pageNum,(char*)recordRight+sizeof(recordRight)-8,4);
-			memcpy(&rid.slotNum,(char*)recordRight+sizeof(recordRight)-4,4);
+			//memcpy(&rid.pageNum,(char*)recordRight+sizeof(recordRight)-8,4);
+			//memcpy(&rid.slotNum,(char*)recordRight+sizeof(recordRight)-4,4);
 		}
 	}
 
+	free(recordMid);
+	free(recordLeft);
+	free(recordRight);
+	free(data);
 	return 0;
 
 }
@@ -237,86 +253,155 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 	void* newPage=malloc(PAGE_SIZE);
 	memset(newPage,0,PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(rootNodeNum,newPage);
-	memcpy(&pageType,(char*)newPage+PAGE_SIZE-4-4,4);//get the type of the node
-
+	memcpy(&flag,(char*)newPage+PAGE_SIZE-4-4,4);//get the type of the node
+	//flag =1-> midnode
+	//flag =0 -> leafnode
 	unsigned int pagnum = rootNodeNum;
 	unsigned int nextpagnum;
+	vector<int> parentTree;
+	parentTree.push_back(rootNodeNum);
+	int slotPosition =0;
+
+	//combine rid with key
+	int ridpag = rid.pageNum;
+	int ridslot = rid.slotNum;
+	void* keyPlusRid = malloc(sizeof(key)+8);//keyplusrid is entry
+	memcpy(keyPlusRid, key,sizeof(key));
+	memcpy((char*)keyPlusRid+sizeof(key),&ridpag,4);
+	memcpy((char*)keyPlusRid+sizeof(key)+4,&ridslot,4);
 
 	// when empty in create Bplus tree, rootpagnum = page 0; flag =0; means it is also leaf
 
 	//find exceted position of the key should be
 	while(flag==1)
 	{
-		findMidnode(...,pagnum,nextpagnum);
+		//findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute,
+		//const void *key, const RID &rid,const unsigned int pagNum,unsigned int nextpagNum)
+		findMidnode(ixfileHandle,attribute,key,rid,pagnum,nextpagnum);
 		pagnum = nextpagnum;
+		parentTree.push_back(nextpagnum);
 	}
 
 	if(flag ==0)
 	{
-		findLeafnode(...,pagnum);
-		pagnum =...;
-		slotnum =...;
+		//findLeafnode(IXFileHandle &ixfileHandle,
+		//const Attribute &attribute, const void *key, RID &rid,const unsigned int pagNum)
+		findLeafnode(ixfileHandle,attribute,key,slotPosition,pagnum);
+		//insert keyPlusrid in PAGE: pagnum, in slot:slotPosition
 
 	}
 //get the position
+	void* leafData = malloc(PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(pagnum,leafData);
+	/////////////////////move the rest records to make room for insertion/////////////////
+	memcpy(&slotNum,(char*)newPage+PAGE_SIZE-4,2);
+	for(int i=slotNum;i>slotPosition;i--){
 
-	if(pageType==leafNode)
-	{
-
-	//	findMidnode();
-		switch(attribute.type)
-		{
-		case TypeInt:{
-			keySize=4;
-			break;
-		}
-		case TypeReal:{
-			keySize=4;
-			break;
-		}
-		case TypeVarChar:{
-			short int varcharLength;
-			memcpy(&varcharLength,(char*)key,4);
-			keySize=varcharLength+4;
-			break;
-		}
-
-		}
-		void* entry=malloc(keySize+8);
-		memcpy((char*)entry,key,keySize);
-		memcpy((char*)entry+keySize,&rid,8);
-		if()
-		/////////////////////move the rest records to make room for insertion/////////////////
-		memcpy(&slotNum,(char*)newPage+PAGE_SIZE-4,2);
-		for(int i=slotNum;i>aimNum;i--){
-
-			memcpy(&recordOffset,(char*)newPage+PAGE_SIZE-4-4-4*i,2);
-			memcpy(&recordLength,(char*)newPage+PAGE_SIZE-4-4-4*i+2,2);
-			memcpy(buffer,(char*)newPage+recordOffset,recordLength);//copy the record into buffer
-			memset((char*)newPage+recordOffset,0,recordLength);//erase the original record
-			memcpy((char*)newPage+recordOffset+keySize,buffer,recordLength);//move the record from buffer to new place
-			//not yet modify the slot to make the right order of it
-
-		}
-		////////////////////we now have maked space for insertion/////////////////////////////
-		memcpy((char*)newPage+recordOffset,entry,keySize+8);//insert the entry, the entry`s size is keySize+8.
-
-
-
-
-
-
+		memcpy(&recordOffset,(char*)leafData+PAGE_SIZE-4-4-4*i,2);
+		memcpy(&recordLength,(char*)leafData+PAGE_SIZE-4-4-4*i+2,2);
+		memcpy(buffer,(char*)leafData+recordOffset,recordLength);//copy the record into buffer
+		memset((char*)leafData+recordOffset,0,recordLength);//erase the original record
+		memcpy((char*)leafData+recordOffset+keySize,buffer,recordLength);//move the record from buffer to new place
+		//not yet modify the slot to make the right order of it
 	}
+	////////////////////we now have maked space for insertion/////////////////////////////
+	memcpy((char*)leafData+recordOffset,keyPlusRid,sizeof(key)+8);//insert the entry, the entry`s size is keySize+8.
 
+	free(leafData);
+	free(buffer);
+	free(newPage);
+	free(keyPlusRid);
 
-    return -1;
+    return 0;
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
+
     return -1;
 }
 
+
+RC IndexManager::splitEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *keyLeafMid,
+		const void *key, const RID &rid,const unsigned int parents,vector<int>&parentsTree,int formerLevel)
+{
+	//combine key and pointer ,should in former level,cause
+	//
+
+	//should import a array of parents to show?
+	//format of page
+	/*[pointer2]record[pointer2]record
+	 *
+	 *
+	 *
+	 *        slot[offset[2](before pointer)+length[2](contain pointer)]; slot[offset[2](before pointer)+length[2](contain pointer)]....;FLAG[4];allslot num[2];freebyte[2];
+	 *
+	 */
+	int midSlot,allSlot;
+	int freeByte=0;
+	vector<Attribute> attrs;
+	attrs.push_back(attribute);
+	void*data = malloc(PAGE_SIZE);
+	int parents1 = parentsTree[parentsTree.size()];
+	ixfileHandle.fileHandle.readPage(parents1,data);
+	int offset = PAGE_SIZE-4;
+	memcpy(&allSlot, offset + (char*) data, 2);
+	offset = PAGE_SIZE-4+2;
+	memcpy(&freeByte,offset+(char*)data,2);
+	if(freeByte<(int)(2+4+sizeof(key)))
+	{
+		//update parents
+		//from midSlot -allSlot
+		//new page
+		void *newPage=malloc(PAGE_SIZE);
+		void *newPageForRead=malloc(PAGE_SIZE);
+		memset(newPage,0,PAGE_SIZE);
+		ixfileHandle.fileHandle.appendPage(newPage);
+		int newPageNum=ixfileHandle.fileHandle.getNumberOfPages()-1;
+		char* pointer=(char*)newPageForRead;
+		char* offsetNow=(char*)newPageForRead;
+		ixfileHandle.fileHandle.readPage(newPageNum,newPageForRead);
+		midSlot= floor(allSlot/2);
+		int j=midSlot;
+		RID rid_mid;
+		void* dataRead = malloc(PAGE_SIZE);//a record read..
+		void* dataPageSplit = malloc(PAGE_SIZE);
+
+		//data is the page that ..already been read
+		for(;j<=allSlot;j++)
+		{
+			offset = PAGE_SIZE -4 -4*j;
+			memcpy(&rid_mid.pageNum,offset+(char*)data,2);
+			memcpy(&rid_mid.slotNum,offset+(char*)data+2,2);//pagnum slotnum which is in front?
+			//read slot-record for loop
+			ixfileHandle.readRecord(data,attribute,dataRead,rid_mid);
+			//delete
+			ixfileHandle.deleteRecord(data,attribute,rid);
+
+			//insert
+			ixfileHandle.insertRecord(dataPageSplit,attribute,dataRead,rid);//havenot insert key
+
+		}
+		ixfileHandle.fileHandle.writePage(newPageNum,dataPageSplit);
+		parentsTree.erase(parentsTree.begin()+parentsTree.size()-1);//-1 or not -1?//update parents;
+
+		return -1;
+		//should split again
+		//should remember splited page for spliting a page point to it //still have not add pointer. need a pointer like:
+		// pointer to less KEY pointer to high
+	}
+	else
+	{
+
+		//insert in this parents page
+	}
+
+	RID rid_ix;
+	RID rid_ixLeft;
+	RID rid_ixRight;
+
+	return 0;
+}
 
 RC IndexManager::scan(IXFileHandle &ixfileHandle,
         const Attribute &attribute,
@@ -386,9 +471,99 @@ RC IXFileHandle:: readRecord(const void* dataPage, const Attribute &attribute,vo
 	if(recordLength==-1)
 	{
 		return -1;
-
 	}
 	memcpy(dataRead, (char*) newPage + recordOffset, recordLength);
 	free(newPage);
 	return 0;
+}
+
+RC IXFileHandle:: insertRecord( void* dataPage, const Attribute &attribute,void *dataInsert,RID rid)//maybe do not need key
+{
+	//dataInsert should already contain pointer
+	//cout<<"create a new page"<<endl;
+	short int freeSpacePointer, slotNum;
+	short int recordOffset, recordLength;
+	int dataSize=sizeof(dataInsert);
+	void *newPage=malloc(PAGE_SIZE);
+	memset(newPage,0,PAGE_SIZE);
+	int newPageNum=fileHandle.getNumberOfPages()-1;
+	char* pointer=(char*)dataPage;
+	char* offsetNow=(char*)dataPage;
+	pointer=pointer+PAGE_SIZE-2;
+	memcpy(&freeSpacePointer,pointer,2);
+	pointer-=2;
+	memcpy(&slotNum,pointer,2);
+	slotNum+=1;
+	offsetNow+=freeSpacePointer;
+	RecordBasedFileManager::instance()->writeRecord(dataInsert,dataSize,offsetNow,slotNum,newPageNum,rid);
+	recordLength=dataSize;
+	recordOffset=freeSpacePointer;
+	freeSpacePointer+=dataSize;
+	memcpy(pointer,&slotNum,2);
+	pointer+=2;
+	memcpy(pointer,&freeSpacePointer,2);
+	pointer=pointer-2-4*rid.slotNum;
+	memcpy(pointer,&recordOffset,2);
+	pointer+=2;
+	memcpy(pointer,&recordLength,2);
+	return 0;
+}
+
+
+RC IXFileHandle:: deleteRecord( void* dataPage, const Attribute &attribute,RID rid)//maybe do not need key
+{
+
+	//delete in this function should ->slot point to next record rather than keep as -1; this function not finished!
+	//different way to move left records
+	short int freeSpacePointer, slotNum;
+	short int recordLength, recordOffset;
+ 	void *newPage=malloc(PAGE_SIZE);
+	memset(newPage,0,PAGE_SIZE);
+	char* pointer=(char*)newPage;
+	fileHandle.readPage(rid.pageNum,newPage);
+	pointer=pointer+PAGE_SIZE-2;
+	memcpy(&freeSpacePointer,pointer,2);
+	pointer-=2;
+	memcpy(&slotNum,pointer,2);
+	pointer=pointer-4*rid.slotNum;
+	memcpy(&recordOffset,(char*)newPage+PAGE_SIZE-4-4*rid.slotNum,2);
+	memcpy(&recordLength,(char*)newPage+PAGE_SIZE-4-4*rid.slotNum+2,2);
+	short int originalOffset=recordOffset;
+	short int originalLength=recordLength;
+
+	memset((char*)newPage+originalOffset,0,originalLength);
+	short int deletedLength=-1;///////////////////////////////deleted record`s slot`s recordLength is -1!!!!!!!!!!!!!!!!!!!!!!!!!
+	memcpy((char*)newPage+PAGE_SIZE-4-4*rid.slotNum+2,&deletedLength,2);
+	//ä¹åçrecordsç¼©è¿
+    char* buffer=(char*)malloc(4000);
+
+//====================================================================================================
+    for(int i=rid.slotNum+1;i<=slotNum;i++)
+    {
+
+    	memset(buffer,0,4000);
+    	//short int newRecordOffset;
+    	memcpy(&recordOffset,(char*)newPage+PAGE_SIZE-4-4*i,2);
+    	memcpy(&recordLength,(char*)newPage+PAGE_SIZE-4-4*i+2,2);
+
+    	if(recordLength==-1)//the deleted record and updated-in-original-page record, there original positions will be ignored
+    	{
+    		continue;//////////////////////////this slot`s record has been deleted, just go on to next loop
+    	}
+
+    	short int newRecordOffset=recordOffset-originalLength;//è®¡ç®åé¢çrecordçoffsetè¯¥åæå¤å°
+        	//ç¼©è¿è¢«å é¤recordåçæ¯ä¸æ¡record
+
+    	memcpy((char*)buffer,recordOffset+(char*)newPage,recordLength);
+        memset((char*)newPage+recordOffset,0,recordLength);
+        memcpy((char*)newPage+newRecordOffset,buffer,recordLength);
+    	memcpy((char*)newPage+PAGE_SIZE-4-4*i,&newRecordOffset,2);//æ´æ°æ¯ä¸ä¸ªrecordçå­å¨slotéé¢çrecord offset,don`t need to update the slotNum
+    }
+//=======================================================================================================================================
+	freeSpacePointer=freeSpacePointer-originalLength;
+	memcpy((char*)newPage+PAGE_SIZE-2,&freeSpacePointer,2);
+    free(buffer);
+    free(newPage);
+    return 0;
+
 }
