@@ -244,12 +244,12 @@ RC IndexManager::findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attri
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
-	short int pageNum, pageType,keySize;
+	//short int  pageType,keySize;
 	short int freeSpacePointer, slotNum;
-	short int aimNum;//the number of the entry that is in front of the insertion position
+	//short int aimNum;//the number of the entry that is in front of the insertion position
 	short int recordLength,recordOffset;
 	char* buffer=(char*)malloc(2000);
-	pageNum=ixfileHandle.fileHandle.getNumberOfPages();
+	//pageNum=ixfileHandle.fileHandle.getNumberOfPages();
 	void* newPage=malloc(PAGE_SIZE);
 	memset(newPage,0,PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(rootNodeNum,newPage);
@@ -293,19 +293,47 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 //get the position
 	void* leafData = malloc(PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(pagnum,leafData);
+	short int insertPosition;
+	memcpy(&insertPosition,(char*)leafData+PAGE_SIZE-4-4-4*(slotPosition+1),2);
 	/////////////////////move the rest records to make room for insertion/////////////////
-	memcpy(&slotNum,(char*)newPage+PAGE_SIZE-4,2);
+	memcpy(&slotNum,(char*)leafData+PAGE_SIZE-4,2);
 	for(int i=slotNum;i>slotPosition;i--){
 
 		memcpy(&recordOffset,(char*)leafData+PAGE_SIZE-4-4-4*i,2);
 		memcpy(&recordLength,(char*)leafData+PAGE_SIZE-4-4-4*i+2,2);
 		memcpy(buffer,(char*)leafData+recordOffset,recordLength);//copy the record into buffer
 		memset((char*)leafData+recordOffset,0,recordLength);//erase the original record
-		memcpy((char*)leafData+recordOffset+keySize,buffer,recordLength);//move the record from buffer to new place
+		memcpy((char*)leafData+recordOffset+sizeof(key),buffer,recordLength);//move the record from buffer to new place
 		//not yet modify the slot to make the right order of it
 	}
-	////////////////////we now have maked space for insertion/////////////////////////////
-	memcpy((char*)leafData+recordOffset,keyPlusRid,sizeof(key)+8);//insert the entry, the entry`s size is keySize+8.
+	////////////////////we now have made space for insertion/////////////////////////////
+	memcpy((char*)leafData+insertPosition,keyPlusRid,sizeof(key)+8);//insert the entry, the entry`s size is keySize+8.
+
+	////////////////////make the slot in order///////////////////////////////////////////
+	for(int i=slotPosition+1;i<=slotNum+1;i++)
+	{
+		////////////////////////read the original slot information/////////////////////////////////
+		memcpy(&recordOffset,leafData+PAGE_SIZE-4-4-4*i,2);
+		memcpy(&recordLength,leafData+PAGE_SIZE-4-4*i+2,2);
+		///////////////////////update the slot information by moving them backward one slot//////////////////////////
+		memcpy(leafData+PAGE_SIZE-4-4-4*(i+1),&recordOffset,2);
+		memcpy(leafData+PAGE_SIZE-4-4-4*(i+1)+2,&recordLength,2);
+
+	}
+	/////////////////////////now write the inserted entry`s slot information///////////////////////////////////////////
+	short int entrySize=sizeof(key)+8;
+	memcpy(leafData+PAGE_SIZE-4-4-4*(slotPosition+1),&insertPosition,2);
+	memcpy(leafData+PAGE_SIZE-4-4-4*(slotPosition+1)+2,&entrySize,2);
+
+	/////////////////////////now update the slotNum(slotNum+1) and the freeSpacePointer(freeSpacePointer+=entrySize)///////////////////////////////////////////////
+	slotNum+=1;
+	freeSpacePointer+=entrySize;
+	memcpy(&freeSpacePointer,leafData+PAGE_SIZE-2,2);
+	memcpy(&slotNum,leafData+PAGE_SIZE-4,2);
+
+	ixfileHandle.fileHandle.writePage(pagnum,leafData);
+	//ixfileHandle.fileHandle.writePage()
+
 
 	free(leafData);
 	free(buffer);
