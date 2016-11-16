@@ -17,12 +17,13 @@ typedef enum
 	nonLeafNode=1
 }nodeType;
 
+static int leafPage;
 
 class IndexManager {
 
     public:
         static IndexManager* instance();
-
+        unsigned int flag;
 
         bool FileExists(const string &fileName)
        {
@@ -51,8 +52,12 @@ class IndexManager {
 
         // Delete an entry from the given index that is indicated by the given ixfileHandle.
         RC deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid);
-        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum);
-        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid,const unsigned int pagnum,const unsigned int nextpagnum);
+        RC findMidnode(IXFileHandle &ixfileHandle, const Attribute &attribute,
+        		const void *key, const RID &rid,const unsigned int pagnum,unsigned int nextpagnum);
+        RC findLeafnode(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key,
+        		 int slotPosition,const unsigned int pagnum);
+        RC splitEntry(IXFileHandle &ixfileHandle, const Attribute &attribute,const void *key, const RID &rid,
+        		vector<int>&parentsTree);
         // Initialize and IX_ScanIterator to support a range search
         RC scan(IXFileHandle &ixfileHandle,
                 const Attribute &attribute,
@@ -64,6 +69,8 @@ class IndexManager {
 
         // Print the B+ tree in pre-order (in a JSON record format)
         void printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const;
+		void printNode(IXFileHandle &ixfileHandle, const Attribute &attribute, int pageNumber) const;
+
 
         RC findPosition(IXFileHandle &ixfileHandle, AttrType attrType);
 
@@ -76,21 +83,7 @@ class IndexManager {
 };
 
 
-class IX_ScanIterator {
-    public:
 
-		// Constructor
-        IX_ScanIterator();
-
-        // Destructor
-        ~IX_ScanIterator();
-
-        // Get next matching entry
-        RC getNextEntry(RID &rid, void *key);
-
-        // Terminate index scan
-        RC close();
-};
 
 
 
@@ -116,6 +109,36 @@ class IXFileHandle {
 	// Put the current counter values of associated PF FileHandles into variables
 	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
 
+	RC readRecord(const void* dataPage,const Attribute &attribute, void *dataRead,RID rid);
+
+	RC insertRecord( void* dataPage, const Attribute &attribute,void *dataInsert,RID rid);
+	RC deleteRecord( void* dataPage, const Attribute &attribute,RID rid);//maybe do not need key
+
+};
+
+
+class IX_ScanIterator {
+    public:
+
+		// Constructor
+        IX_ScanIterator();
+
+        // Destructor
+        ~IX_ScanIterator();
+
+        // Get next matching entry
+        RC getNextEntry(RID &rid, void *key);
+
+        const void*lowKey;
+        const  void*highKey;
+        bool equalLow;
+        bool equalHigh;
+        RID IXrid_iterator;
+        int pagenum;
+        Attribute IX_attribute;
+        IXFileHandle ix_fileHandlescaniter;
+        // Terminate index scan
+        RC close();
 };
 
 #endif
