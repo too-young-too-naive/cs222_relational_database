@@ -12,11 +12,33 @@
 using namespace std;
 
 
-typedef struct
+typedef struct RIDx
 {
   unsigned pageNum;    // page number
-  unsigned slotNum;    // slot number in the page
+  unsigned slotNum;
+
+  bool operator<(const RIDx &a) const
+  {
+	  if(pageNum!=a.pageNum) return pageNum<a.pageNum;
+	  else{
+		  if (slotNum!=a.slotNum)  return slotNum<a.slotNum;
+	  }
+  }
+/*
+　　bool operator< (const RIDx &a)  const
+    {
+        if(pageNum!=a.pageNum)
+            return pageNum<a.pageNum;
+        else
+        {
+            if(slotNum!=a.slotNum)
+                return slotNum<a.slotNum;
+
+        }
+    }
+    */// slot number in the page
 } RID;
+
 
 typedef struct
 {

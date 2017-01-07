@@ -1172,7 +1172,7 @@ RC RecordBasedFileManager::transferRecord(FileHandle &fileHandle, const void *da
 			   	    	free(newPage);
 
 			   	    	//===========================================
-			   	    	if(i=(fileHandle.getNumberOfPages())-1){
+			   	    	if(i==(fileHandle.getNumberOfPages())-1){
 			   	    		break;
 			   	    	}
 
@@ -1376,6 +1376,7 @@ RC RBFM_ScanIterator::scan_compare(const CompOp compOp,int &hit,const void*value
 		}
 		case LE_OP:
 		{
+	//		cout<<"entttttttt"<<endl;
 			if(value_get<=value)
 			{
 				hit=1;
@@ -1503,11 +1504,13 @@ RC RBFM_ScanIterator::scan_readRecord(FileHandle &fileHandle, const vector<Attri
 ///////////////////////iterator
 RC RBFM_ScanIterator:: getNextRecord(RID &rid, void *data)
 {
+//	cout<<"enter get nextrecord------------------------------"<<endl;
 	char* data_store =(char*) malloc(PAGE_SIZE); //need free in the end
 	//char* pointer = (char*) newPage;
 	memset(data_store,0,PAGE_SIZE);
 	int size_record = 0;
 	int hit =0;// show this record fit requirement
+
 	int nullBit=ceil((double)recordDescriptor_iterator.size()/8.0);
 //	vector<Attribute> seleterecordDescriptor;// store new attributename->attr
 //	cout<<pagenum<<"pagenum"<<endl;
@@ -1643,6 +1646,7 @@ RC RBFM_ScanIterator:: getNextRecord(RID &rid, void *data)
 					//	void* value_get; compare if meet comp
 						switch(recordDescriptor_iterator[position-1].type){
 							case TypeInt:{
+								cout<<"compare"<<endl;
 								int intField;
 								memcpy(&intField,offsetgetvalue+(char*)read_data,4);
 								scan_compare(compOp,hit,value,&intField);
@@ -2035,6 +2039,7 @@ RBFM_ScanIterator::~RBFM_ScanIterator()
 RC RBFM_ScanIterator:: close()
 {
 	PagedFileManager::instance()->closeFile(fileHandlescaniter);
+	return 0;
 }
 
 

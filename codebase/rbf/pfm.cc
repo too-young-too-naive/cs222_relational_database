@@ -92,6 +92,7 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle)
 
 	FILE *fp=fileHandle.file;
  fclose(fp);
+ return 0;
 
 }
 
@@ -111,11 +112,14 @@ FileHandle::~FileHandle()
 
 RC FileHandle::readPage(PageNum pageNum, void *data)
 {
+	//cout<<"have readddddddd"<<endl;
     FILE *fp=file;
     if(pageNum<getNumberOfPages()){
+   // 	cout<<"enter read"<<endl;
     	fseek(fp,pageNum*PAGE_SIZE,SEEK_SET);
         fread(data,1,PAGE_SIZE,fp);
         readPageCounter++;
+     //   cout<<"readPageCounter"<<readPageCounter<<endl;
         return 0;
     }
     else{

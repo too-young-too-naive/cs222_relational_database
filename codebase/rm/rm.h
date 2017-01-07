@@ -2,25 +2,74 @@
 #ifndef _rm_h_
 #define _rm_h_
 
+#include <stdio.h>
 #include <string>
 #include <vector>
+#include <iostream>
+#include <iterator>
+#include <fstream>
 
 #include "../rbf/rbfm.h"
-
+#include "../ix/ix.h"
 using namespace std;
 
 # define RM_EOF (-1)  // end of a scan operator
 
+
 // RM_ScanIterator is an iteratr to go through tuples
 class RM_ScanIterator {
 public:
-  RM_ScanIterator() {};
-  ~RM_ScanIterator() {};
+	  RM_ScanIterator(){};
+	  ~RM_ScanIterator(){};
 
-  // "data" follows the same format as RelationManager::insertTuple()
-  RC getNextTuple(RID &rid, void *data) { return RM_EOF; };
-  RC close() { return -1; };
+	  // "data" follows the same format as RelationManager::insertTuple()
+	  RC getNextTuple(RID &rid, void *data);
+	  RC close();
+
+	  FileHandle fileHandlescaniterRM;
+	  RID rid_iteratorRM;
+	  vector<Attribute> recordDescriptor_iteratorRM;
+	  CompOp compOpRM;
+	  const void *valueRM;
+	  int pagenum;
+	  string  conditionAttrbutestr;
+	  vector<string> attributeNames_iteratorRM;
+	  RBFM_ScanIterator rbfm_iterator;
 };
+
+class RM_IndexScanIterator {
+ public:
+  RM_IndexScanIterator();  	// Constructor
+  ~RM_IndexScanIterator(); 	// Destructor
+
+  IX_ScanIterator ix_scanIterator;
+  // "key" follows the same format as in IndexManager::insertEntry()
+  RC getNextEntry(RID &rid, void *key);  	// Get next matching entry
+  RC close();             			// Terminate index scan
+};
+
+
+typedef struct{
+	int tableid;
+//	char tablename[50] ="#################################################";//contain /0
+	char tablename[50] ="                                                 ";
+	char filename[50] = "                                                 ";
+} Tables;
+
+typedef struct {
+	int tableid;
+	char columnname[50] = "                                                 ";
+	//string columnname;
+	int columntype;
+	int columnlength;
+	int columnposition;
+} Columns;
+
+typedef struct
+{
+ int slot_all_num;    //number of existed slot
+ int left;    // free bytes  in the page
+} page_info;
 
 
 // Relation Manager
@@ -28,6 +77,8 @@ class RelationManager
 {
 public:
   static RelationManager* instance();
+  vector<Tables> table;
+  vector<Columns> column;
 
   RC createCatalog();
 
@@ -61,6 +112,20 @@ public:
       const void *value,                    // used in the comparison
       const vector<string> &attributeNames, // a list of projected attributes
       RM_ScanIterator &rm_ScanIterator);
+
+  RC createIndex(const string &tableName, const string &attributeName);
+
+    RC destroyIndex(const string &tableName, const string &attributeName);
+
+    // indexScan returns an iterator to allow the caller to go through qualified entries in index
+    RC indexScan(const string &tableName,
+                          const string &attributeName,
+                          const void *lowKey,
+                          const void *highKey,
+                          bool lowKeyInclusive,
+                          bool highKeyInclusive,
+                          RM_IndexScanIterator &rm_IndexScanIterator
+         );
 
 // Extra credit work (10 points)
 public:
